@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng Ký Vé Xe Thập Tự Online</title>
+    <style>
+        :root { --primary-color: #d35400; --bg-color: #fdf5e6; --seat-avail: #fff; --seat-selected: #f1c40f; --seat-booked: #95a5a6; --seat-master: #c0392b; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg-color); margin: 0; padding: 10px; color: #333; }
+        .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 15px; border-radius: 10px; border-top: 5px solid var(--primary-color); position: relative;}
+        
+        h1 { text-align: center; color: var(--primary-color); margin: 5px 0; font-size: 1.5rem; }
+        
+        /* Ảnh chương trình */
+        .program-img { width: 100%; max-height: 400px; object-fit: contain; border-radius: 5px; margin-bottom: 10px; display: none; }
+
+        .btn { padding: 12px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; color: #fff; width: 100%; font-size: 16px; margin-top: 10px; }
+        .btn-primary { background-color: var(--primary-color); }
+        
+        .bus-tabs { display: flex; overflow-x: auto; gap: 5px; margin-bottom: 15px; padding-bottom: 5px; }
+        .tab-btn { flex: 0 0 auto; padding: 8px 15px; border: 1px solid #ccc; background: #eee; cursor: pointer; border-radius: 15px; font-size: 13px; }
+        .tab-btn.active { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+
+        .bus-wrapper { background: #e0e0e0; padding: 20px; border-radius: 15px; margin: 0 auto; border: 2px solid #999; position: relative; }
+        .bus-45 { width: 320px; } 
+        .bus-16 { width: 220px; }
+
+        .row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .aisle { width: 30px; }
+        .seat { width: 45px; height: 35px; background: var(--seat-avail); border: 1px solid #999; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; cursor: pointer; user-select: none; }
+        .seat.selected { background-color: var(--seat-selected); color: #fff; border-color: #f39c12; }
+        .seat.booked { background-color: var(--seat-booked); cursor: not-allowed; color: #eee; border-color: #7f8c8d; }
+        .seat.master-seat { background-color: var(--seat-master); color: #fff; cursor: not-allowed; border-color: #922b21; }
+        
+        .driver-area { margin-top: 20px; border-top: 2px dashed #999; padding-top: 10px; display: flex; justify-content: space-between; font-weight: bold; color: #555; }
+        
+        input { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        /* Làm nổi bật ô đang nhập */
+        input:focus { border-color: var(--primary-color); outline: none; box-shadow: 0 0 5px rgba(211, 84, 0, 0.3); }
+
+        #loading { position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0.9); z-index: 999; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary-color); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="loading">
+        <div class="spinner"></div>
+        <div id="loading-text">Đang tải dữ liệu...</div>
+    </div>
+
+    <h1>NAM MÔ A DI ĐÀ PHẬT</h1>
+    <div style="text-align: center; margin-bottom: 10px; font-size: 0.9rem;">Đăng Ký Vé Xe Thập Tự</div>
+    
+    <img id="program-img" class="program-img" src="" alt="Lịch trình">
+
+    <div class="bus-tabs" id="bus-tabs"></div>
+
+    <div style="background: #fff3e0; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+        <input type="text" id="fullname" placeholder="Họ Tên (Bắt buộc)">
+        <input type="text" id="phapdanh" placeholder="Pháp Danh">
+        <input type="tel" id="phone" placeholder="Số Điện Thoại (Bắt buộc - 10 số)" pattern="[0-9]*" inputmode="numeric">
+    </div>
+
+    <div style="display: flex; justify-content: center; gap: 10px; font-size: 11px; margin-bottom: 10px;">
+        <span><span style="display:inline-block;width:10px;height:10px;background:#fff;border:1px solid #ccc"></span> Trống</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#f1c40f;"></span> Chọn</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#95a5a6;"></span> Đã đặt</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#c0392b;"></span> Thầy</span>
+    </div>
+
+    <div id="current-bus-map"></div>
+
+    <div style="text-align: center; margin-top: 15px; background: #eee; padding: 10px; border-radius: 5px;">
+        Ghế chọn: <strong id="selected-seats-display" style="color: #d35400;">...</strong>
+    </div>
+
+    <button class="btn btn-primary" onclick="submitBooking()">XÁC NHẬN ĐĂNG KÝ</button>
+</div>
+
+<script>
+    // --- BÁC DÁN LINK WEB APP SCRIPT VÀO DÒNG DƯỚI NHÉ ---
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzL2LGpxYLCpC4yPmK489n8QFK6Em2CfcSepGyyWkE-UQqK_ZkEkU8FVXBkMiumncoprw/exec"; 
+
+    let buses = []; 
+    let currentBusIndex = 0;
+    let selectedSeats = [];
+    let bookedData = [];
+
+    window.onload = function() { 
+        fetchData();
+        setupEnterKey();
+    };
+
+    function setupEnterKey() {
+        const inputs = ['fullname', 'phapdanh', 'phone'];
+        inputs.forEach((id, index) => {
+            const el = document.getElementById(id);
+            if(el) {
+                el.addEventListener('keydown', function(event) {
+                    if (event.key === 'Enter') {
+                        event.preventDefault(); 
+                        if (index < inputs.length - 1) {
+                            document.getElementById(inputs[index + 1]).focus();
+                        } else {
+                            el.blur();
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    async function fetchData() {
+        document.getElementById('loading').style.display = 'flex';
+        try {
+            const response = await fetch(SCRIPT_URL);
+            const json = await response.json();
+            
+            if (json.status === 'success') {
+                bookedData = json.data;
+                buses = json.config.buses; 
+                
+                if (json.config.programImage) {
+                    const imgEl = document.getElementById('program-img');
+                    imgEl.src = json.config.programImage;
+                    imgEl.style.display = 'block';
+                }
+
+                renderTabs();
+                if(buses.length > 0) renderMap(0);
+            }
+        } catch (error) {
+            alert("Lỗi kết nối! Vui lòng thử lại.");
+        } finally {
+            document.getElementById('loading').style.display = 'none';
+        }
+    }
+
+    function renderTabs() {
+        const container = document.getElementById('bus-tabs');
+        container.innerHTML = '';
+        buses.forEach((bus, index) => {
+            const btn = document.createElement('div');
+            btn.className = `tab-btn ${index === currentBusIndex ? 'active' : ''}`;
+            btn.textContent = bus.name; 
+            btn.onclick = () => {
+                currentBusIndex = index;
+                selectedSeats = [];
+                updateSummary();
+                renderTabs();
+                renderMap(index);
+            };
+            container.appendChild(btn);
+        });
+    }
+
+    function renderMap(index) {
+        const bus = buses[index];
+        const container = document.getElementById('current-bus-map');
+        container.innerHTML = '';
+        
+        const busWrapper = document.createElement('div');
+        busWrapper.className = `bus-wrapper bus-${bus.type}`; 
+        
+        const booked = [];
+        bookedData.forEach(b => { if(b.xe === bus.name) booked.push(...b.ghe); });
+
+        const createSeat = (id, isRear=false) => {
+            if (bus.type == '45' && id === '2A') return `<div class="seat master-seat">2A</div>`;
+            
+            let className = "seat";
+            if (booked.includes(id)) className += " booked";
+            else if (selectedSeats.includes(id)) className += " selected";
+            
+            const style = isRear ? 'style="width:18%"' : '';
+            const onClick = booked.includes(id) ? '' : `onclick="toggleSeat('${id}')"`;
+            
+            return `<div class="${className}" ${style} ${onClick}>${id}</div>`;
+        };
+
+        let html = '';
+
+        if (bus.type == '45') {
+            html += `<div class="row">
+                ${createSeat('41', true)}${createSeat('42', true)}${createSeat('43', true)}${createSeat('44', true)}${createSeat('45', true)}
+            </div>`;
+            const rows = [
+                ['19A','20A','19B','20B'], ['17A','18A','17B','18B'], ['15A','16A','15B','16B'],
+                ['13A','14A','13B','14B'], ['11A','12A','11B','12B'], ['9A','10A','9B','10B'],
+                ['7A','8A','7B','8B'], ['5A','6A','5B','6B'], ['3A','4A','3B','4B'], ['1A','2A','1B','2B']
+            ];
+            rows.forEach(r => {
+                html += `<div class="row">
+                    <div style="display:flex; gap:5px">${createSeat(r[0])}${createSeat(r[1])}</div>
+                    <div class="aisle"></div>
+                    <div style="display:flex; gap:5px">${createSeat(r[2])}${createSeat(r[3])}</div>
+                </div>`;
+            });
+        } 
+        else if (bus.type == '16') {
+             html += `<div class="row">
+                ${createSeat('13')}${createSeat('14')}${createSeat('15')}${createSeat('16')}
+            </div>`;
+            const rows16 = [['10','11','12'], ['7','8','9'], ['4','5','6'], ['1','2','3']];
+            rows16.forEach(r => {
+                html += `<div class="row">
+                    <div style="display:flex; gap:5px">${createSeat(r[0])}${createSeat(r[1])}</div>
+                    <div class="aisle"></div>
+                    ${createSeat(r[2])}
+                </div>`;
+            });
+        }
+
+        html += `<div class="driver-area"><div>Cửa</div><div>Tài Xế</div></div>`;
+        busWrapper.innerHTML = html;
+        container.appendChild(busWrapper);
+    }
+
+    function toggleSeat(id) {
+        if (selectedSeats.includes(id)) selectedSeats = selectedSeats.filter(s => s !== id);
+        else selectedSeats.push(id);
+        updateSummary();
+        renderMap(currentBusIndex);
+    }
+
+    function updateSummary() {
+        document.getElementById('selected-seats-display').textContent = selectedSeats.length ? selectedSeats.join(', ') : "...";
+    }
+
+    async function submitBooking() {
+        const name = document.getElementById('fullname').value.trim();
+        const phone = document.getElementById('phone').value.trim();
+        
+        // --- 1. KIỂM TRA HỌ TÊN ---
+        if (!name) {
+            alert("MÔ PHẬT! Vui lòng nhập Họ Tên Phật Tử.");
+            document.getElementById('fullname').focus();
+            return;
+        }
+
+        // --- 2. KIỂM TRA SỐ ĐIỆN THOẠI CHẶT CHẼ ---
+        // Regex: Bắt đầu bằng số 0, theo sau là 9 chữ số (tổng 10 số)
+        const phoneRegex = /^0\d{9}$/;
+        
+        if (!phone) {
+            alert("MÔ PHẬT! Vui lòng nhập Số Điện Thoại.");
+            document.getElementById('phone').focus();
+            return;
+        }
+
+        if (!phoneRegex.test(phone)) {
+            alert("MÔ PHẬT! Số điện thoại không hợp lệ.\nVui lòng nhập đúng 10 số, bắt đầu bằng số 0.\nVí dụ: 0912345678");
+            document.getElementById('phone').focus();
+            return;
+        }
+
+        // --- 3. KIỂM TRA GHẾ ---
+        if (!selectedSeats.length) {
+            alert("MÔ PHẬT! Vui lòng chọn ghế trên sơ đồ trước khi đăng ký.");
+            return;
+        }
+
+        document.getElementById('loading').style.display = 'flex';
+        
+        try {
+            const res = await fetch(SCRIPT_URL, {
+                method: 'POST',
+                body: JSON.stringify({
+                    name, dharma: document.getElementById('phapdanh').value, phone,
+                    busName: buses[currentBusIndex].name,
+                    seats: selectedSeats
+                })
+            });
+            const json = await res.json();
+            
+            if(json.status === 'success') {
+                alert("MÔ PHẬT! Đã Đăng ký xong, Phật Tử Vui Lòng Liên Hệ Văn Phòng Để Nhận Vé xe");
+                
+                selectedSeats = [];
+                document.getElementById('fullname').value = '';
+                document.getElementById('phapdanh').value = '';
+                document.getElementById('phone').value = '';
+                updateSummary();
+                fetchData(); 
+            } else {
+                alert("LỖI: " + json.message);
+                fetchData();
+            }
+        } catch (e) { alert("Lỗi gửi đơn! Vui lòng thử lại."); }
+        finally { document.getElementById('loading').style.display = 'none'; }
+    }
+</script>
+
+</body>
+</html>
