@@ -35,9 +35,8 @@
         .driver-area { margin-top: 20px; border-top: 2px dashed #999; padding-top: 10px; display: flex; justify-content: space-between; font-weight: bold; color: #555; }
         
         input { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
-        /* Làm nổi bật ô đang nhập */
         input:focus { border-color: var(--primary-color); outline: none; box-shadow: 0 0 5px rgba(211, 84, 0, 0.3); }
-
+        
         #loading { position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0.9); z-index: 999; display: flex; align-items: center; justify-content: center; flex-direction: column; }
         .spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary-color); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 10px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -81,7 +80,7 @@
 </div>
 
 <script>
-    // --- BÁC DÁN LINK WEB APP SCRIPT VÀO DÒNG DƯỚI NHÉ ---
+    // --- CẤU HÌNH: DÁN LINK WEB APP CỦA BÁC VÀO ĐÂY ---
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzL2LGpxYLCpC4yPmK489n8QFK6Em2CfcSepGyyWkE-UQqK_ZkEkU8FVXBkMiumncoprw/exec"; 
 
     let buses = []; 
@@ -94,6 +93,7 @@
         setupEnterKey();
     };
 
+    // --- TÍNH NĂNG PHÍM ENTER CHUYỂN Ô ---
     function setupEnterKey() {
         const inputs = ['fullname', 'phapdanh', 'phone'];
         inputs.forEach((id, index) => {
@@ -105,7 +105,7 @@
                         if (index < inputs.length - 1) {
                             document.getElementById(inputs[index + 1]).focus();
                         } else {
-                            el.blur();
+                            el.blur(); // Nếu là ô cuối thì ẩn bàn phím
                         }
                     }
                 });
@@ -113,16 +113,20 @@
         });
     }
 
+    // --- TẢI DỮ LIỆU TỪ GOOGLE SHEET ---
     async function fetchData() {
         document.getElementById('loading').style.display = 'flex';
         try {
-            const response = await fetch(SCRIPT_URL);
+            // Thêm timestamp để KHÔNG dùng bộ nhớ cache (luôn tải mới)
+            const noCacheUrl = SCRIPT_URL + "?t=" + new Date().getTime();
+            const response = await fetch(noCacheUrl);
             const json = await response.json();
             
             if (json.status === 'success') {
                 bookedData = json.data;
                 buses = json.config.buses; 
                 
+                // Hiển thị ảnh
                 if (json.config.programImage) {
                     const imgEl = document.getElementById('program-img');
                     imgEl.src = json.config.programImage;
@@ -130,15 +134,22 @@
                 }
 
                 renderTabs();
-                if(buses.length > 0) renderMap(0);
+                
+                // QUAN TRỌNG: Giữ nguyên vị trí xe đang chọn sau khi load lại
+                if(buses.length > 0) {
+                    if (currentBusIndex >= buses.length) currentBusIndex = 0;
+                    renderMap(currentBusIndex);
+                }
             }
         } catch (error) {
+            console.error(error);
             alert("Lỗi kết nối! Vui lòng thử lại.");
         } finally {
             document.getElementById('loading').style.display = 'none';
         }
     }
 
+    // --- VẼ TAB CHỌN XE ---
     function renderTabs() {
         const container = document.getElementById('bus-tabs');
         container.innerHTML = '';
@@ -148,7 +159,7 @@
             btn.textContent = bus.name; 
             btn.onclick = () => {
                 currentBusIndex = index;
-                selectedSeats = [];
+                selectedSeats = []; // Đổi xe thì reset ghế đang chọn
                 updateSummary();
                 renderTabs();
                 renderMap(index);
@@ -157,6 +168,7 @@
         });
     }
 
+    // --- VẼ SƠ ĐỒ GHẾ ---
     function renderMap(index) {
         const bus = buses[index];
         const container = document.getElementById('current-bus-map');
@@ -165,10 +177,12 @@
         const busWrapper = document.createElement('div');
         busWrapper.className = `bus-wrapper bus-${bus.type}`; 
         
+        // Lấy danh sách ghế đã đặt của xe này
         const booked = [];
         bookedData.forEach(b => { if(b.xe === bus.name) booked.push(...b.ghe); });
 
         const createSeat = (id, isRear=false) => {
+            // Ghế 2A xe 45 chỗ là ghế Quý Thầy
             if (bus.type == '45' && id === '2A') return `<div class="seat master-seat">2A</div>`;
             
             let className = "seat";
@@ -184,6 +198,7 @@
         let html = '';
 
         if (bus.type == '45') {
+            // Xe 45 chỗ
             html += `<div class="row">
                 ${createSeat('41', true)}${createSeat('42', true)}${createSeat('43', true)}${createSeat('44', true)}${createSeat('45', true)}
             </div>`;
@@ -201,6 +216,7 @@
             });
         } 
         else if (bus.type == '16') {
+             // Xe 16 chỗ
              html += `<div class="row">
                 ${createSeat('13')}${createSeat('14')}${createSeat('15')}${createSeat('16')}
             </div>`;
@@ -230,34 +246,32 @@
         document.getElementById('selected-seats-display').textContent = selectedSeats.length ? selectedSeats.join(', ') : "...";
     }
 
+    // --- GỬI ĐƠN ĐĂNG KÝ ---
     async function submitBooking() {
         const name = document.getElementById('fullname').value.trim();
         const phone = document.getElementById('phone').value.trim();
         
-        // --- 1. KIỂM TRA HỌ TÊN ---
+        // 1. Kiểm tra Tên
         if (!name) {
             alert("MÔ PHẬT! Vui lòng nhập Họ Tên Phật Tử.");
             document.getElementById('fullname').focus();
             return;
         }
 
-        // --- 2. KIỂM TRA SỐ ĐIỆN THOẠI CHẶT CHẼ ---
-        // Regex: Bắt đầu bằng số 0, theo sau là 9 chữ số (tổng 10 số)
+        // 2. Kiểm tra SĐT (10 số, bắt đầu bằng 0)
         const phoneRegex = /^0\d{9}$/;
-        
         if (!phone) {
             alert("MÔ PHẬT! Vui lòng nhập Số Điện Thoại.");
             document.getElementById('phone').focus();
             return;
         }
-
         if (!phoneRegex.test(phone)) {
-            alert("MÔ PHẬT! Số điện thoại không hợp lệ.\nVui lòng nhập đúng 10 số, bắt đầu bằng số 0.\nVí dụ: 0912345678");
+            alert("MÔ PHẬT! Số điện thoại không hợp lệ.\nVui lòng nhập đúng 10 số, bắt đầu bằng số 0.");
             document.getElementById('phone').focus();
             return;
         }
 
-        // --- 3. KIỂM TRA GHẾ ---
+        // 3. Kiểm tra chọn ghế
         if (!selectedSeats.length) {
             alert("MÔ PHẬT! Vui lòng chọn ghế trên sơ đồ trước khi đăng ký.");
             return;
@@ -277,13 +291,17 @@
             const json = await res.json();
             
             if(json.status === 'success') {
+                // THÔNG BÁO THÀNH CÔNG
                 alert("MÔ PHẬT! Đã Đăng ký xong, Phật Tử Vui Lòng Liên Hệ Văn Phòng Để Nhận Vé xe");
                 
+                // Reset form
                 selectedSeats = [];
                 document.getElementById('fullname').value = '';
                 document.getElementById('phapdanh').value = '';
                 document.getElementById('phone').value = '';
                 updateSummary();
+                
+                // Tải lại dữ liệu (Mã này sẽ giữ nguyên xe số 4 nếu đang ở xe 4)
                 fetchData(); 
             } else {
                 alert("LỖI: " + json.message);
