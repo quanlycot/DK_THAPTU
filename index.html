@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Đăng Ký Vé Xe Thập Tự Online</title>
     <style>
-        :root { --primary-color: #d35400; --bg-color: #fdf5e6; --seat-avail: #fff; --seat-selected: #f1c40f; --seat-booked: #95a5a6; --seat-master: #c0392b; --warning-bg: #fff3cd; --warning-text: #856404; }
+        :root { --primary-color: #d35400; --bg-color: #fdf5e6; --seat-avail: #fff; --seat-selected: #f1c40f; --seat-booked: #e0e0e0; --seat-master: #c0392b; --warning-bg: #fff3cd; --warning-text: #856404; }
         body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg-color); margin: 0; padding: 10px; color: #333; }
         .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 15px; border-radius: 10px; border-top: 5px solid var(--primary-color); position: relative;}
         
@@ -36,7 +36,7 @@
             font-size: 11px; font-weight: bold; cursor: pointer; user-select: none; 
         }
         .seat.selected { background-color: var(--seat-selected); color: #fff; border-color: #f39c12; }
-        .seat.booked { background-color: var(--seat-booked); cursor: not-allowed; color: #fff; border-color: #7f8c8d; }
+        .seat.booked { background-color: var(--seat-booked); cursor: not-allowed; color: #555; border-color: #bdc3c7; }
         .seat.master-seat { background-color: var(--seat-master); color: #fff; cursor: not-allowed; border-color: #922b21; }
         
         .driver-area { margin-top: 20px; border-top: 2px dashed #999; padding-top: 10px; display: flex; justify-content: space-between; font-weight: bold; color: #555; }
@@ -313,9 +313,11 @@
         document.getElementById('selected-seats-display').textContent = selectedSeats.length ? selectedSeats.join(', ') : "...";
     }
 
+    // --- SỬA LỖI: CẬP NHẬT TỨC THÌ (OPTIMISTIC UPDATE) ---
     async function submitBooking() {
         const name = document.getElementById('fullname').value.trim();
         const phone = document.getElementById('phone').value.trim();
+        const dharma = document.getElementById('phapdanh').value;
         
         if (!name) return alert("MÔ PHẬT! Vui lòng nhập Họ Tên.");
         const phoneRegex = /^0\d{9}$/;
@@ -327,25 +329,44 @@
         if (!selectedSeats.length) return alert("Chưa chọn ghế!");
 
         document.getElementById('loading').style.display = 'flex';
+        
         try {
             const res = await fetch(SCRIPT_URL, {
                 method: 'POST',
                 body: JSON.stringify({
-                    name, dharma: document.getElementById('phapdanh').value, phone,
+                    name, dharma, phone,
                     busName: buses[currentBusIndex].name,
                     seats: selectedSeats
                 })
             });
             const json = await res.json();
+            
             if(json.status === 'success') {
                 alert("MÔ PHẬT! Đã Đăng ký xong. Vui lòng liên hệ Văn Phòng để nhận vé.");
+                
+                // 1. CẬP NHẬT GIẢ LẬP TỨC THÌ (Để ghế tô xám luôn)
+                // Đẩy dữ liệu vừa đặt vào danh sách BookedData của trình duyệt
+                bookedData.push({
+                    xe: buses[currentBusIndex].name,
+                    ghe: [...selectedSeats], // copy mảng ghế
+                    ten: name,
+                    phapdanh: dharma
+                });
+
+                // 2. Reset form
                 selectedSeats = [];
                 document.getElementById('fullname').value = '';
                 document.getElementById('phapdanh').value = '';
                 document.getElementById('phone').value = '';
                 document.getElementById('birthyear').value = ''; 
                 updateSummary();
-                fetchData(); 
+                
+                // 3. Vẽ lại bản đồ ngay lập tức (Ghế sẽ xám ngay)
+                renderMap(currentBusIndex);
+
+                // 4. Sau 2 giây mới tải lại dữ liệu thật từ Server để đồng bộ
+                setTimeout(fetchData, 2000); 
+
             } else {
                 alert("LỖI: " + json.message);
                 fetchData();
@@ -375,7 +396,7 @@
             }
         });
 
-        // Sắp xếp theo TÊN (A->Z) để gom nhóm gia đình
+        // Sắp xếp theo TÊN (A->Z)
         passengers.sort((a, b) => {
             return a.name.localeCompare(b.name, 'vi', {sensitivity: 'base'});
         });
