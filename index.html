@@ -169,7 +169,11 @@
             const json = await response.json();
             
             if (json.status === 'success') {
-                bookedData = json.data;
+                // SỬA LỖI TRIM DỮ LIỆU TỪ SERVER VỀ
+                bookedData = json.data.map(item => {
+                    item.ghe = item.ghe.map(g => g.trim()); // Cắt khoảng trắng ghế
+                    return item;
+                });
                 buses = json.config.buses; 
                 
                 if (json.config.programImage) {
@@ -180,6 +184,7 @@
 
                 renderTabs();
                 if(buses.length > 0) {
+                    // Giữ nguyên xe đang chọn nếu có
                     if (currentBusIndex >= buses.length) currentBusIndex = 0;
                     renderMap(currentBusIndex);
                 }
@@ -224,6 +229,7 @@
             let onClick = `onclick="toggleSeat('${id}')"`;
             let content = id;
 
+            // Kiểm tra ghế đã đặt (QUAN TRỌNG: id phải khớp chính xác)
             if (booked.includes(id)) {
                 className += " booked";
                 onClick = ""; 
@@ -313,7 +319,6 @@
         document.getElementById('selected-seats-display').textContent = selectedSeats.length ? selectedSeats.join(', ') : "...";
     }
 
-    // --- SỬA LỖI: CẬP NHẬT TỨC THÌ (OPTIMISTIC UPDATE) ---
     async function submitBooking() {
         const name = document.getElementById('fullname').value.trim();
         const phone = document.getElementById('phone').value.trim();
@@ -344,16 +349,14 @@
             if(json.status === 'success') {
                 alert("MÔ PHẬT! Đã Đăng ký xong. Vui lòng liên hệ Văn Phòng để nhận vé.");
                 
-                // 1. CẬP NHẬT GIẢ LẬP TỨC THÌ (Để ghế tô xám luôn)
-                // Đẩy dữ liệu vừa đặt vào danh sách BookedData của trình duyệt
+                // 1. CẬP NHẬT TỨC THÌ (ĐÃ SỬA LỖI KHOẢNG TRẮNG)
                 bookedData.push({
                     xe: buses[currentBusIndex].name,
-                    ghe: [...selectedSeats], // copy mảng ghế
+                    ghe: selectedSeats.map(s => s.trim()), // Đảm bảo ghế lưu vào cũng sạch
                     ten: name,
                     phapdanh: dharma
                 });
 
-                // 2. Reset form
                 selectedSeats = [];
                 document.getElementById('fullname').value = '';
                 document.getElementById('phapdanh').value = '';
@@ -361,11 +364,11 @@
                 document.getElementById('birthyear').value = ''; 
                 updateSummary();
                 
-                // 3. Vẽ lại bản đồ ngay lập tức (Ghế sẽ xám ngay)
+                // Vẽ lại ngay lập tức
                 renderMap(currentBusIndex);
 
-                // 4. Sau 2 giây mới tải lại dữ liệu thật từ Server để đồng bộ
-                setTimeout(fetchData, 2000); 
+                // 2. Tải lại dữ liệu thật sau 4 giây (Tăng thời gian chờ Google Sheet)
+                setTimeout(fetchData, 4000); 
 
             } else {
                 alert("LỖI: " + json.message);
@@ -375,7 +378,6 @@
         finally { document.getElementById('loading').style.display = 'none'; }
     }
 
-    // --- LOGIC CHO MODAL DANH SÁCH ---
     function openPassengerList() {
         const bus = buses[currentBusIndex];
         document.getElementById('modalBusName').textContent = bus.name;
@@ -388,7 +390,7 @@
             if (b.xe === bus.name) {
                 b.ghe.forEach(g => {
                     passengers.push({
-                        seat: g,
+                        seat: g.trim(), // Cắt khoảng trắng hiển thị
                         name: b.ten,
                         dharma: b.phapdanh
                     });
@@ -396,7 +398,6 @@
             }
         });
 
-        // Sắp xếp theo TÊN (A->Z)
         passengers.sort((a, b) => {
             return a.name.localeCompare(b.name, 'vi', {sensitivity: 'base'});
         });
